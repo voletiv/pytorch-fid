@@ -51,7 +51,7 @@ except ImportError:
 from inception import InceptionV3
 
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument('path', type=str, nargs=2,
+parser.add_argument('paths', type=str, nargs=2,
                     help=('Path to the generated images or '
                           'to .npz statistic files'))
 parser.add_argument('--batch-size', type=int, default=50,
@@ -125,7 +125,7 @@ def get_activations(files, model, batch_size=50, dims=2048,
         if pred.shape[2] != 1 or pred.shape[3] != 1:
             pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
 
-        pred_arr[start:end] = pred.cpu().data.numpy().reshape(batch_size, -1)
+        pred_arr[start:end] = pred.cpu().detach().numpy().reshape(batch_size, -1)
 
     if verbose:
         print(' done')
@@ -229,8 +229,16 @@ def _compute_statistics_of_path(path, model, batch_size, dims, cuda):
     return m, s
 
 
-def calculate_fid_given_paths(paths, batch_size, cuda, dims):
+def calculate_fid_given_paths(paths, batch_size, gpu, dims=2048,
+                              calc_only_for_one_path=False, m2=None, s2=None):
     """Calculates the FID of two paths"""
+    """If calc_only_for_one_path is True, then
+           - only m1 and s1 are calculated for paths[0],
+           - and m2 & s2 are given"""
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
+    cuda = False if args.gpu == '' else True
+
     for p in paths:
         if not os.path.exists(p):
             raise RuntimeError('Invalid path: %s' % p)
@@ -243,8 +251,11 @@ def calculate_fid_given_paths(paths, batch_size, cuda, dims):
 
     m1, s1 = _compute_statistics_of_path(paths[0], model, batch_size,
                                          dims, cuda)
-    m2, s2 = _compute_statistics_of_path(paths[1], model, batch_size,
-                                         dims, cuda)
+
+    if not calc_only_for_one_path:
+        m2, s2 = _compute_statistics_of_path(paths[1], model, batch_size,
+                                             dims, cuda)
+
     fid_value = calculate_frechet_distance(m1, s1, m2, s2)
 
     return fid_value
@@ -252,10 +263,8 @@ def calculate_fid_given_paths(paths, batch_size, cuda, dims):
 
 if __name__ == '__main__':
     args = parser.parse_args()
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
-
-    fid_value = calculate_fid_given_paths(args.path,
+    fid_value = calculate_fid_given_paths(args.paths,
                                           args.batch_size,
-                                          args.gpu != '',
+                                          args.gpu,
                                           args.dims)
     print('FID: ', fid_value)
