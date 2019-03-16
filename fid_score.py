@@ -1,4 +1,5 @@
-#!/usr/bin/env python3
+# https://github.com/voletiv/pytorch-fid
+
 """Calculates the Frechet Inception Distance (FID) to evalulate GANs
 
 The FID metric calculates the distance between two distributions of images.
@@ -111,7 +112,7 @@ def get_activations(files, model, batch_size=50, dims=2048,
                            for f in files[start:end]])
 
         # Reshape to (n_images, 3, height, width)
-        images = images.transpose((0, 3, 1, 2))
+        images = images.transpose((0, 3, 1, 2))[:, :3, :, :]
         images /= 255
 
         batch = torch.from_numpy(images).type(torch.FloatTensor)
